@@ -2,9 +2,11 @@
 import email
 import imaplib
 import os
+import re
 import smtplib
 import sqlite3
 import subprocess
+import time
 from datetime import datetime, timedelta
 from email.header import decode_header, make_header
 from email.message import EmailMessage
@@ -32,6 +34,11 @@ SCHEMAS = [
     _s("list_files", "List files in the workspace.", {"path": STR}),
     _s("read_imessages", "Read the most recent iMessages.", {"limit": INT}),
     _s("send_imessage", "Send an iMessage. Requires user approval.", {"to": {"type": "string", "description": "phone or Apple ID email"}, "text": STR}, ["to", "text"]),
+    _s("search_issues", "Search the user's issue/troubleshooting knowledge base. ALWAYS call this first when the user asks about a problem, error, bug or something not working.",
+       {"query": {"type": "string", "description": "keywords describing the problem"}}, ["query"]),
+    _s("save_issue", "Save an issue and its fix to the knowledge base so it can be answered next time. Use when the user teaches you a fix or confirms a solution worked.",
+       {"title": STR, "solution": STR, "symptoms": {"type": "string", "description": "error text / what is observed, optional"}, "tags": {"type": "string", "description": "comma-separated, optional"}},
+       ["title", "solution"]),
 ]
 
 
@@ -108,6 +115,25 @@ def write_file(path, content):
 
 def list_files(path="."):
     return sorted(os.listdir(_safe(path)))
+
+
+# ---- issues knowledge base ----
+def save_issue(title, solution, symptoms="", tags=""):
+    return {"id": db.x("INSERT INTO issues(title,symptoms,solution,tags,ts) VALUES(?,?,?,?,?)",
+                       (title, symptoms, solution, tags, time.time()))}
+
+
+def search_issues(query, limit=3):
+    words = {w for w in re.findall(r"[a-z0-9_.]+", query.lower()) if len(w) > 2}
+    scored = []
+    for r in db.q("SELECT * FROM issues"):
+        text = " ".join(str(r[k] or "") for k in ("title", "symptoms", "tags", "solution")).lower()
+        score = sum(w in text for w in words)
+        if score:
+            scored.append((score, r))
+    scored.sort(key=lambda t: -t[0])
+    hits = [{k: r[k] for k in ("id", "title", "symptoms", "solution")} for _, r in scored[:limit]]
+    return hits or {"result": "no saved fix found; answer from general knowledge and offer to save_issue once solved"}
 
 
 # ---- iMessage ----

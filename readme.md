@@ -11,7 +11,13 @@ Local-model personal assistant (Ollama, no API costs), controlled from Telegram.
 
 ## Chat commands
 
-/pending, /approve <id>, /reject <id>, /good, /bad
+/pending, /approve <id>, /reject <id>, /good, /bad, /teach <issue> | <fix>
+
+## Teaching it about issues
+
+Ask about any problem ("wifi keeps dropping", "pip install fails") and the bot searches its
+`issues` table first, then falls back to general knowledge. Teach it fixes with
+`/teach <issue> | <fix>`, or just tell it "that worked, remember it" and it calls `save_issue`.
 
 ## Improving it with your data
 
